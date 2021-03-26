@@ -1,0 +1,588 @@
+redis主要减轻数据库中select操作的压力
+基本命令
+	ping 确定是否正常工作
+	desize 返回当前数据规模 默认访问第0个库
+	改变默认使用的库，在conf文件中修改 
+	select 选择不同的库存储数据 select 5
+	flushdb 删除当前库中的所有数据
+	exit 退出客户端
+
+redis数据持久化
+	数据在内存中
+	定时定期的把数据保存到磁盘
+
+操作key的命令
+	keys * 表示0或多个字符 key ？单个字符
+		127.0.0.1:6379> keys *
+		1) "k1"
+
+		127.0.0.1:6379> keys *
+		1) "k2"
+		2) "k1"
+		3) "k3"
+		4) "word"
+		5) "world"
+
+		127.0.0.1:6379> keys k*
+		1) "k2"
+		2) "k1"
+		3) "k3"
+
+		127.0.0.1:6379> keys wo?d
+		1) "word"
+
+		127.0.0.1:6379> keys wo*d
+		1) "word"
+		2) "world"
+
+	exist key[keys]判断key是否存在 返回一个数量（有多少个存在，但是不知道哪个是存在的）
+		127.0.0.1:6379> EXISTS k1
+		(integer) 1
+		127.0.0.1:6379> EXISTS k1 k2
+		(integer) 2
+		127.0.0.1:6379> EXISTS k1 k2 k5
+		(integer) 2
+	
+	expire key 设置一个key的存活时间(只能对已有的key设置时间)
+	ttl 查看一个key的剩余时间
+		-1永远存在
+		-2不存在
+		数字：剩余秒数
+
+	type key存的值是什么数据类型（string list set zset hash）
+		127.0.0.1:6379> type k1
+		none
+		127.0.0.1:6379> type k2
+		string
+
+	del 删除key和value
+		127.0.0.1:6379> keys *
+		1) "k2"
+		2) "k3"
+		3) "word"
+		4) "world"
+		127.0.0.1:6379> del k2
+		(integer) 1
+		127.0.0.1:6379> del k3
+		(integer) 1
+		127.0.0.1:6379> keys *
+		1) "word"
+		2) "world"
+
+redis五种数据类型
+	string（最大512M）
+	hash（类似map，一般用于存储一个java对象的全部属性）
+		map中有map
+	
+	list 和java中的list一样（可以有重复值）
+
+	set 和java中的set一样（唯一，无序）
+
+	zset 和java中的有序set一样（唯一，有序）
+
+string类型的命令
+【redis中所有key都是string类型的】
+	基本命令：
+		set 创建key value
+		get 获取key的值
+		127.0.0.1:6379> set k1 v1
+		OK
+		127.0.0.1:6379> get k1
+		"v1"
+		127.0.0.1:6379> set k1 v111
+		OK
+		127.0.0.1:6379> get k1
+		"v111"
+		（存在覆盖行为）
+
+		incr key 把key存储的整形值++
+		127.0.0.1:6379> set k2 10
+		OK
+		127.0.0.1:6379> incr k2
+		(integer) 11
+		127.0.0.1:6379> get k2
+		"11"
+		incr一个不存在的key，使用的方式是把key创建出来并赋值为1
+		127.0.0.1:6379> incr k3
+		(integer) 1
+		127.0.0.1:6379> get k3
+		"1"
+		对字符串incr会报错
+		127.0.0.1:6379> incr k1
+		(error) ERR value is not an integer or out of range
+
+		decr相当于--
+		127.0.0.1:6379> decr k2
+		(integer) 10
+		127.0.0.1:6379> get k2
+		"10"
+		没有的key会创建出来并-1为-1
+		127.0.0.1:6379> decr k4
+		(integer) -1
+		127.0.0.1:6379> get k4
+		"-1"
+
+		append key value
+			把value追加到key的末尾，不存在就按“”追加 返回追加后的长度
+		127.0.0.1:6379> get k1
+		"v111"
+		127.0.0.1:6379> append k1 222
+		(integer) 7
+		127.0.0.1:6379> get k1
+		"v111222"
+	
+	常用命令
+		strlen 求字符串长度
+		127.0.0.1:6379> strlen k1
+		(integer) 7
+
+		getrange 取子字符串（substring）
+		【redis中从左向右0，1，2，，，从右向左-1，-2，-3】
+		127.0.0.1:6379> set te zhangmeng
+		OK
+		127.0.0.1:6379> GETRANGE te 1 -2
+		"hangmen"
+		127.0.0.1:6379> getrange te 0 4
+		"zhang"
+		127.0.0.1:6379> getrange te 0 -1
+		"zhangmeng"
+
+		setrange 进行值的替换 返回修改后的字符串的长度
+		127.0.0.1:6379> set item java-tmocat
+		OK
+		127.0.0.1:6379> setrange item 5 tom
+		(integer) 11
+		127.0.0.1:6379> get item
+		"java-tomcat"
+
+		mset一次创建多个key-value
+			127.0.0.1:6379> mset k5 v5 k6 v6 k7 v7
+		mget 得到多个
+			127.0.0.1:6379> mget k5 k6
+			1) "v5"
+			2) "v6"
+			127.0.0.1:6379> mget k5 k6 k11
+			1) "v5"
+			2) "v6"
+			3) (nil)
+
+hash
+	基本命令：
+		hset 创建hash类型（返回1说明是filed新的 0说明是旧的）
+		hash表的key称为filed
+		127.0.0.1:6379> hset website baidu www.baidu.com
+		(integer) 1
+		127.0.0.1:6379> hset website google www.google.com
+		(integer) 1
+		127.0.0.1:6379> hset website baidu baidu.com
+		(integer) 0
+
+		hget 从表中获取value
+		127.0.0.1:6379> hget website google
+		"www.google.com"
+		
+		hmset设置多个
+		127.0.0.1:6379> hmset website pronhub www.pronhub.com sohu www.sohu.com
+		OK
+		
+		hmget
+		127.0.0.1:6379> hmget website pronhub sohu baidu tee
+		1) "www.pronhub.com"
+		2) "www.sohu.com"
+		3) "baidu.com"
+		4) (nil)
+
+		hgetall得到整张hash表
+		127.0.0.1:6379> HGETALL website
+		1) "baidu"
+		2) "baidu.com"
+		3) "google"
+		4) "www.google.com"
+		5) "pronhub"
+		6) "www.pronhub.com"
+		7) "sohu"
+		8) "www.sohu.com"
+
+		hdel删除指定field
+		127.0.0.1:6379> hdel website baidu
+		(integer) 1
+		127.0.0.1:6379> HGETALL website
+		1) "google"
+		2) "www.google.com"
+		3) "pronhub"
+		4) "www.pronhub.com"
+		5) "sohu"
+		6) "www.sohu.com"
+	常用命令
+		hkeys 得到所有的filed
+		127.0.0.1:6379> hkeys website
+		1) "google"
+		2) "pronhub"
+		3) "sohu"
+
+		hvals
+		127.0.0.1:6379> hvals website
+		1) "www.google.com"
+		2) "www.pronhub.com"
+		3) "www.sohu.com"
+		
+		hexites 指定filed是否存在
+		127.0.0.1:6379> HEXISTS website sohu
+		(integer) 1
+
+list
+【分头和尾 l头 r尾】
+	基本命令
+		lpush 创建或者添加值（左侧添加）
+		127.0.0.1:6379> lpush mylist a b c
+		(integer) 3
+		
+		rpush 从右插
+		127.0.0.1:6379> rpush mylist x y z
+		(integer) 6
+		
+		lrange 获取指定区间内的数据（range同string的range）
+		127.0.0.1:6379> rpush lang c++ c php java python
+		(integer) 5
+
+		127.0.0.1:6379> lrange lang 0 1
+		1) "c++"
+		2) "c"
+
+		lindex取指定下标的成员
+		127.0.0.1:6379> lindex lang 3
+		"java"
+
+		llen计算成员个数的
+		127.0.0.1:6379> llen lang
+		(integer) 5
+
+	常用命令
+		lrem 从左侧删除（按值删除）
+		lrem key count value
+		lrem lang 2 java 从列表的左侧找到两个与value相同的value删除（count为0时删除所有与value相同的值）
+		127.0.0.1:6379> lrem lang 2 python
+		(integer) 2
+		127.0.0.1:6379> lrange lang 0 -1
+		1) "c++"
+		2) "c"
+		3) "php"
+		4) "java"
+		5) "go"
+		
+		lset 用value替换指定下标
+		127.0.0.1:6379> lset lang 2 python
+		OK
+		127.0.0.1:6379> lrange lang 0 -1
+		1) "c++"
+		2) "c"
+		3) "python"
+		4) "java"
+		5) "go"
+		
+		linsert 在列表中插入新的元素
+		127.0.0.1:6379> lrange lang 0 -1
+		1) "c++"
+		2) "c"
+		3) "python"
+		4) "java"
+		5) "go"
+		127.0.0.1:6379> linsert lang before python php
+		(integer) 6
+		127.0.0.1:6379> lrange lang 0 -1
+		1) "c++"
+		2) "c"
+		3) "php"
+		4) "python"
+		5) "java"
+		6) "go"
+
+set
+	基本命令
+		sadd 添加member
+		127.0.0.1:6379> sadd sql insert update
+		(integer) 2
+		127.0.0.1:6379> sadd sql select
+		(integer) 1
+		127.0.0.1:6379> sadd sql select
+		(integer) 0
+		元素不能重复
+		
+		smembers 获取所有成员
+		127.0.0.1:6379> SMEMBERS sql
+		1) "select"
+		2) "insert"
+		3) "update"
+		4) "delete"
+
+		sismember 判断有没有memeber
+		127.0.0.1:6379> SISMEMBER sql insert
+		(integer) 1
+
+		scard 计算成员的个数
+		127.0.0.1:6379> SCArd sql
+		(integer) 4
+
+		srem删除一个或多个元素
+		127.0.0.1:6379> srem sql insert select
+		(integer) 2
+		127.0.0.1:6379> SMEMBERS sql
+		1) "update"
+		2) "delete"
+		
+	常用命令
+		srandmember随机从集合中返回元素
+		127.0.0.1:6379> SRANDMEMBER sql
+		"delete"
+		127.0.0.1:6379> SRANDMEMBER sql 2【可以指定随机几个】
+		1) "update"
+		2) "delete"
+		使用负数时返回个数是绝对值，但是会有重复
+
+		spop随机删除（也可以指定数量）
+		127.0.0.1:6379> spop sql
+		"delete"
+
+zset（相同score按照成员的字典顺排）
+
+	基本命令
+		zadd创建集合、添加
+		127.0.0.1:6379> zadd student 80 css 95 mysql 75 java 99 c
+		(integer) 4
+		127.0.0.1:6379> zadd student 80 basic 
+		(integer) 1
+		
+		zrange 按下标取出指定区间的成员
+		127.0.0.1:6379> zrange student 0 -1
+		1) "java"
+		2) "basic"
+		3) "css"
+		4) "mysql"
+		5) "c
+		127.0.0.1:6379> zrange student 0 -1 withscores
+		 1) "java"
+		 2) "75"
+		 3) "basic"
+		 4) "80"
+		 5) "css"
+		 6) "80"
+		 7) "mysql"
+		 8) "95"
+		 9) "c"
+		10) "99"
+
+		zrevrange 取zrange的反序
+		127.0.0.1:6379> zrevrange student 0 -1 withscores
+		 1) "c"
+		 2) "99"
+		 3) "mysql"
+		 4) "95"
+		 5) "css"
+		 6) "80"
+		 7) "basic"
+		 8) "80"
+		 9) "java"
+		10) "75"
+
+		zrem 删除成员
+		127.0.0.1:6379> zrevrange student 0 -1 withscores
+		 1) "c"
+		 2) "99"
+		 3) "mysql"
+		 4) "95"
+		 5) "css"
+		 6) "80"
+		 7) "basic"
+		 8) "80"
+		 9) "java"
+		10) "75"
+		127.0.0.1:6379> zrem student mysql
+		(integer) 1
+		127.0.0.1:6379> zrevrange student 0 -1 withscores
+		1) "c"
+		2) "99"
+		3) "css"
+		4) "80"
+		5) "basic"
+		6) "80"
+		7) "java"
+		8) "75"
+
+		zcard 统计集合成员的个数
+		127.0.0.1:6379> zcard student
+		(integer) 4
+	常用命令
+		zrangebyscore 按照score
+		127.0.0.1:6379> zrangebyscore student 80 99 
+		1) "basic"
+		2) "css"
+		3) "c"
+		（-inf负无穷 +inf正无穷）
+		127.0.0.1:6379> zrangebyscore student 80 99 withscores
+		1) "basic"
+		2) "80"
+		3) "css"
+		4) "80"
+		5) "c"
+		6) "99"
+		127.0.0.1:6379> zrangebyscore student 80 (99 withscores
+		1) "basic"
+		2) "80"
+		3) "css"
+		4) "80"
+		使用“（”为不取等
+
+		zrevrangebyscore为zrangebyscore的相反排列
+
+		zcount 统计区间内有几个
+		127.0.0.1:6379> zcount student 80 99
+		(integer) 3
+
+服务器的配置
+
+	事务
+		multi---标记事务的开启
+			事务内多条命令会被放在一个队列中
+
+			127.0.0.1:6379> sadd lab zhangmeng
+			QUEUED
+			127.0.0.1:6379> sadd lab hongzehai
+			QUEUED
+			127.0.0.1:6379> sadd lab sunyuming
+			QUEUED
+			127.0.0.1:6379> SMEMBERS lab
+			QUEUED
+
+
+		exec---标记事务的执行
+			结果是事务中每条命令的结果
+
+			127.0.0.1:6379> exec
+			1) (integer) 1
+			2) (integer) 1
+			3) (integer) 1
+			4) 1) "zhangmeng"
+			   2) "sunyuming"
+			   3) "hongzehai"
+
+		discard---取消事务
+
+		watch---监控一个（多个）key的值是否被改动。被改变了对当前事务会放弃
+			对操作的数据不上锁，通过watch看有没有别的操作在改目标值。
+			通过主动放弃的方式避免多个操作同时作用在一个数据上。
+
+		unwatch---取消所有监控
+
+	
+	事务执行exec之前，命令语法错误或者导致redis出现致命错误的，会导致放弃事务。
+	
+	事务exec执行时出错，事务被正常提交。会在返回语句中报错
+		redis不能回滚
+	
+	主动放弃事务：discard 直接在multi中输入即可放弃
+
+
+持久化
+	两种方式：RDB（内存快照） 在指定时间间隔内把内存中的数据写到磁盘的二进制文件中
+			dump.rdb默认文件
+			缺点：会丢失数据（不能报错所有数据）
+		
+		AOF：对数据的每个修改命令记录到磁盘文本文件中（同时记录命令和数据）。
+			默认不开启 appendonly.aof默认文件名
+			aof每次重新启动的时候都会读取这个文件
+
+			aof重写：aof达到某个大小后可以开始重写
+
+			（aof always几乎可以报错每条数据）
+
+主从复制
+	多台redis服务器，一台充当master负责对数据的修改，多台slave负责读。
+	读写分离。从服务器也相当于备份
+
+	通过启动多个redis-server进程模拟
+
+	通过修改配置文件实现指定配置文件，一台物理机实现三个redis
+		用三个端口号6380 6382 6384实现模拟
+			6380主服务 6382，6384从服务
+		主
+		include /usr/local/redis-5.0.2/redis.conf
+		daemonize yes 
+		port 6380
+		pidfile /var/run/redis_6380.pid 
+		logfile 6380.log
+		dbfilename dump6380.rdb
+		从
+		include /usr/local/redis-5.0.2/redis.conf
+		daemonize yes
+		port 6382
+		pidfile /var/run/redis_6382.pid 
+		logfile 6382.log
+		dbfilename dump6382.rdb 
+		slaveof 127.0.0.1 6380
+
+		include /usr/local/redis-5.0.2/redis.conf
+		daemonize yes
+		port 6384
+		pidfile /var/run/redis_6384.pid 
+		logfile 6384.log
+		dbfilename dump6384.rdb 
+		slaveof 127.0.0.1 6380
+
+		启动
+		[root@localhost src]# ./redis-server ../redis6380.conf 
+		[root@localhost src]# ./redis-server ../redis6382.conf 
+		[root@localhost src]# ./redis-server ../redis6384.conf
+		[root@localhost src]# ps -ef | grep redis
+		root      58670      1  0 10:26 ?        00:00:00 ./redis-server *:6380
+		root      58683      1  0 10:26 ?        00:00:00 ./redis-server *:6382
+		root      58689      1  0 10:26 ?        00:00:00 ./redis-server *:6384
+		root      58696  57588  0 10:27 pts/1    00:00:00 grep --color=auto redis
+		
+		主服务器的数据会直接复制给从服务器
+		从服务器不能添加数据，只能读数据
+
+	容灾处理
+		主redis 宕机
+		两台slave中的一台变为主
+			slaveof no one 
+			127.0.0.1:6382> slaveof no one
+			127.0.0.1:6382> info replication
+			# Replication
+			role:master
+			connected_slaves:0
+			
+
+			127.0.0.1:6384> slaveof 127.0.0.1 6382
+			OK
+			127.0.0.1:6384> info replication
+			# Replication
+			role:slave
+			master_host:127.0.0.1
+			master_port:6382
+			master_link_status:up
+			master_last_io_seconds_ago:6
+			master_sync_in_progress:0
+			slave_repl_offset:1355
+			slave_priority:100
+			slave_read_only:1
+			connected_slaves:0
+			
+			
+			修好后主服务器重新上线
+			127.0.0.1:6380> info replication
+			# Replication
+			role:master
+			connected_slaves:0
+			将新上线的指定为从服务器
+
+哨兵---自动化处理故障
+	不处理数据，监控redis运行
+	主从的关系处理可以自动化处理
+	哨兵至少三个，一定是奇数个。都监控主redis
+		心跳机制：每秒向redis发送ping redis返回pong
+		投票认为redis是否能工作。哨兵系统通过投票直接开始把从升级为主redis
+		
+	sentinel.conf哨兵配置文件
+	59396:X 26 Mar 2021 11:07:03.869 # +switch-master mymaster 127.0.0.1 6382 127.0.0.1 6380
+
+p37
