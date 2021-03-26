@@ -585,4 +585,7 @@ zset（相同score按照成员的字典顺排）
 	sentinel.conf哨兵配置文件
 	59396:X 26 Mar 2021 11:07:03.869 # +switch-master mymaster 127.0.0.1 6382 127.0.0.1 6380
 
-p37
+安全设置
+	设置密码 redis.conf中使用vim找到requirepass 使用密码
+	绑定ip 绑定端口
+
